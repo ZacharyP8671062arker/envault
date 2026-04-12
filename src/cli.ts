@@ -1,58 +1,64 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { runInit } from "./commands/init";
-import { runPull } from "./commands/pull";
+import { runRotate } from "./commands/rotate";
+import { parseEnvFile } from "./commands/push";
+import fs from "fs";
+import path from "path";
 
 const program = new Command();
 
 program
   .name("envault")
-  .description("Encrypt and sync .env files across team members using asymmetric keys")
+  .description("Encrypt and sync .env files using asymmetric keys")
   .version("0.1.0");
 
 program
   .command("init")
-  .description("Initialize envault: generate a key pair for this user")
+  .description("Initialize envault in the current project")
   .action(async () => {
     await runInit();
   });
 
 program
-  .command("pull")
-  .description("Decrypt vault and write variables to a local .env file")
-  .option("-o, --output <file>", "Output file path", ".env")
-  .action(async (options: { output: string }) => {
-    await runPull(options.output);
-  });
-
-program
   .command("push")
-  .description("Encrypt local .env file and save to vault")
-  .option("-i, --input <file>", "Input .env file path", ".env")
-  .action(async () => {
-    const { runPush } = await import("./commands/push");
-    await runPush();
+  .description("Encrypt and push .env file to vault")
+  .option("-f, --file <path>", "Path to .env file", ".env")
+  .action(async (opts) => {
+    const { default: runPush } = await import("./commands/push");
+    await (runPush as any)(opts.file);
   });
 
 program
-  .command("add")
-  .description("Add or update a single variable in the vault")
-  .argument("<key>", "Variable name")
-  .argument("<value>", "Variable value")
-  .action(async (key: string, value: string) => {
-    const { runAdd } = await import("./commands/add");
-    await runAdd(key, value);
+  .command("pull")
+  .description("Decrypt vault and write .env file")
+  .option("-f, --file <path>", "Output .env file path", ".env")
+  .action(async (opts) => {
+    const { default: runPull } = await import("./commands/pull");
+    await (runPull as any)(opts.file);
+  });
+
+program
+  .command("add <key> <value>")
+  .description("Add or update a single key in the vault")
+  .action(async (key, value) => {
+    const { default: runAdd } = await import("./commands/add");
+    await (runAdd as any)(key, value);
   });
 
 program
   .command("sync")
-  .description("Sync vault with remote team members")
+  .description("Sync vault with remote")
   .action(async () => {
-    const { runSync } = await import("./commands/sync");
-    await runSync();
+    const { default: runSync } = await import("./commands/sync");
+    await (runSync as any)();
   });
 
-program.parseAsync(process.argv).catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+program
+  .command("rotate")
+  .description("Rotate key pair and re-encrypt all vault entries")
+  .action(async () => {
+    await runRotate();
+  });
+
+program.parse(process.argv);
