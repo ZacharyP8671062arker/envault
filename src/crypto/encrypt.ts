@@ -40,30 +40,50 @@ export function encryptWithPublicKey(
 
 /**
  * Decrypts a payload produced by encryptWithPublicKey using the RSA private key.
+ * @throws {Error} If the payload is malformed or decryption fails.
  */
 export function decryptWithPrivateKey(
   encryptedPayload: string,
   privateKeyPem: string
 ): string {
-  const payload = JSON.parse(
-    Buffer.from(encryptedPayload, 'base64').toString('utf8')
-  );
+  let payload: { encryptedKey?: unknown; iv?: unknown; authTag?: unknown; data?: unknown };
 
-  const encryptedKey = Buffer.from(payload.encryptedKey, 'base64');
-  const iv = Buffer.from(payload.iv, 'base64');
-  const authTag = Buffer.from(payload.authTag, 'base64');
-  const data = Buffer.from(payload.data, 'base64');
+  try {
+    payload = JSON.parse(
+      Buffer.from(encryptedPayload, 'base64').toString('utf8')
+    );
+  } catch {
+    throw new Error('Failed to parse encrypted payload: invalid base64 or JSON');
+  }
+
+  if (!payload.encryptedKey || !payload.iv || !payload.authTag || !payload.data) {
+    throw new Error('Malformed encrypted payload: missing required fields');
+  }
+
+  const encryptedKey = Buffer.from(payload.encryptedKey as string, 'base64');
+  const iv = Buffer.from(payload.iv as string, 'base64');
+  const authTag = Buffer.from(payload.authTag as string, 'base64');
+  const data = Buffer.from(payload.data as string, 'base64');
 
   // Decrypt the AES key with the RSA private key
-  const aesKey = crypto.privateDecrypt(
-    { key: privateKeyPem, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING },
-    encryptedKey
-  );
+  let aesKey: Buffer;
+  try {
+    aesKey = crypto.privateDecrypt(
+      { key: privateKeyPem, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING },
+      encryptedKey
+    );
+  } catch {
+    throw new Error('Failed to decrypt AES key: invalid private key or corrupted payload');
+  }
 
   // Decrypt the payload with AES-256-GCM
   const decipher = crypto.createDecipheriv('aes-256-gcm', aesKey, iv);
   decipher.setAuthTag(authTag);
 
-  const decrypted = Buffer.concat([decipher.update(data), decipher.final()]);
-  return decrypted.toString('utf8');
+  try {
+    const decrypted = Buffer.concat([decipher.update(data), decipher.final()]);
+    return decrypted.toString('utf8');
+  } catch {
+    throw new Error('Failed to decrypt data: authentication tag mismatch or corrupted ciphertext');
+  }
 }
