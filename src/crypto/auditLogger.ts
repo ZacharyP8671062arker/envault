@@ -1,52 +1,50 @@
-import { appendAuditEntry, AuditEntry } from '../commands/audit';
+import * as fs from 'fs';
 
-export type AuditAction =
-  | 'init'
-  | 'push'
-  | 'pull'
-  | 'share'
-  | 'unshare'
-  | 'revoke'
-  | 'rotate'
-  | 'export'
-  | 'list';
+const AUDIT_LOG_PATH = '.envault/audit.log';
 
-export function logAction(
-  action: AuditAction,
-  user: string,
-  target?: string,
-  details?: string
-): void {
-  const entry: AuditEntry = {
-    timestamp: new Date().toISOString(),
-    action,
-    user,
-    ...(target !== undefined && { target }),
-    ...(details !== undefined && { details }),
-  };
-  appendAuditEntry(entry);
+export interface AuditEntry {
+  action: string;
+  actor: string;
+  target?: string;
+  timestamp: string;
+  meta?: Record<string, unknown>;
 }
 
-export function logPush(user: string, key: string): void {
-  logAction('push', user, key, 'secret pushed to vault');
+export function logAction(entry: Omit<AuditEntry, 'timestamp'>): void {
+  const full: AuditEntry = { ...entry, timestamp: new Date().toISOString() };
+  const line = JSON.stringify(full) + '\n';
+  fs.appendFileSync(AUDIT_LOG_PATH, line, 'utf-8');
 }
 
-export function logPull(user: string, key: string): void {
-  logAction('pull', user, key, 'secret pulled from vault');
+export function logPush(actor: string, keyCount: number): void {
+  logAction({ action: 'push', actor, meta: { keyCount } });
 }
 
-export function logShare(owner: string, recipient: string): void {
-  logAction('share', owner, recipient, 'vault shared with user');
+export function logPull(actor: string, keyCount: number): void {
+  logAction({ action: 'pull', actor, meta: { keyCount } });
 }
 
-export function logUnshare(owner: string, recipient: string): void {
-  logAction('unshare', owner, recipient, 'vault access revoked from user');
+export function logShare(actor: string, target: string): void {
+  logAction({ action: 'share', actor, target });
 }
 
-export function logRotate(user: string): void {
-  logAction('rotate', user, undefined, 'key pair rotated');
+export function logUnshare(actor: string, target: string): void {
+  logAction({ action: 'unshare', actor, target });
 }
 
-export function logExport(user: string, outputPath: string): void {
-  logAction('export', user, outputPath, 'vault exported to env file');
+export function logSnapshot(actor: string, snapshotId: string, label: string): void {
+  logAction({ action: 'snapshot', actor, meta: { snapshotId, label } });
+}
+
+export function logSnapshotDelete(actor: string, snapshotId: string): void {
+  logAction({ action: 'snapshot_delete', actor, meta: { snapshotId } });
+}
+
+export function readAuditEntries(): AuditEntry[] {
+  if (!fs.existsSync(AUDIT_LOG_PATH)) return [];
+  return fs
+    .readFileSync(AUDIT_LOG_PATH, 'utf-8')
+    .split('\n')
+    .filter(Boolean)
+    .map(line => JSON.parse(line) as AuditEntry);
 }
