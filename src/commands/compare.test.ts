@@ -61,11 +61,29 @@ describe('compareVaults', () => {
     expect(result.diffValues).toHaveLength(0);
     expect(result.matching).toHaveLength(0);
   });
+
+  it('should handle vaults with multiple differing and matching keys', () => {
+    mockLoadVault
+      .mockReturnValueOnce({ SHARED: 'same', CHANGED: 'old', ONLY_A: 'val' })
+      .mockReturnValueOnce({ SHARED: 'same', CHANGED: 'new', ONLY_B: 'val' });
+
+    const result = compareVaults('vault-a.json', 'vault-b.json');
+    expect(result.matching).toContain('SHARED');
+    expect(result.diffValues).toContain('CHANGED');
+    expect(result.onlyInA).toContain('ONLY_A');
+    expect(result.onlyInB).toContain('ONLY_B');
+  });
 });
 
 describe('formatCompareOutput', () => {
   it('should return identical message when no differences', () => {
     const result: CompareResult = { onlyInA: [], onlyInB: [], diffValues: [], matching: ['KEY'] };
+    const output = formatCompareOutput(result);
+    expect(output).toBe('Vaults are identical.');
+  });
+
+  it('should return identical message when all arrays are empty', () => {
+    const result: CompareResult = { onlyInA: [], onlyInB: [], diffValues: [], matching: [] };
     const output = formatCompareOutput(result);
     expect(output).toBe('Vaults are identical.');
   });
@@ -83,6 +101,4 @@ describe('formatCompareOutput', () => {
     expect(output).toContain('Only in production:');
     expect(output).toContain('  + NEW_KEY');
     expect(output).toContain('Different values:');
-    expect(output).toContain('  ~ CHANGED');
-  });
-});
+    expect(output).toContain(
