@@ -46,6 +46,7 @@ envault alias list
 - Aliases must contain only alphanumeric characters, underscores (`_`), or hyphens (`-`).
 - Aliases are stored in `.envault/aliases.json` and should be committed to version control so the whole team benefits.
 - If a given string does not match any alias, it is used as-is (pass-through).
+- Aliases cannot share a name with an existing vault key to avoid ambiguity.
 
 ## Storage
 
@@ -62,3 +63,4 @@ Aliases are persisted in `.envault/aliases.json`:
 
 - Aliases do **not** affect the encrypted vault keys themselves — they are purely a client-side convenience layer.
 - Circular aliases are not detected; avoid mapping an alias to another alias.
+- Renaming a vault key does not automatically update any aliases pointing to it — update them manually with `alias set`.
