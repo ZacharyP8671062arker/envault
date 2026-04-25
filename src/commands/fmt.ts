@@ -62,6 +62,12 @@ export function runFmt(filePath: string, options: FmtOptions = {}): void {
     process.exit(1);
   }
 
+  const stats = fs.statSync(resolved);
+  if (!stats.isFile()) {
+    console.error(`Not a file: ${resolved}`);
+    process.exit(1);
+  }
+
   const original = fs.readFileSync(resolved, "utf-8");
   const formatted = formatEnvContent(original, options);
 
